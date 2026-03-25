@@ -196,8 +196,7 @@ class NavigationHandler:
                         # Try clicking again
                         await element.click(timeout=3000)
                     except Exception as retry_err:
-                        err_msg = str(retry_err).split('\n')[0]
-                        print(f"Overlay still present, forcing click... ({err_msg})")
+                        print(f"Overlay still present, forcing click... ({retry_err})")
                         await element.click(timeout=3000, force=True)
                 else:
                     raise click_err
@@ -444,7 +443,6 @@ class NavigationHandler:
                 'button:has-text("Cancel")',
                 'button:has-text("No thanks")',
                 'button:has-text("Dismiss")',
-                '.cdk-overlay-backdrop',
             ]
             
             for selector in dismiss_selectors:
@@ -453,7 +451,7 @@ class NavigationHandler:
                     for el in elements:
                         if await el.is_visible():
                             print(f"Clicking dismiss action in overlay: {selector}")
-                            await el.click(timeout=2000, force=True)
+                            await el.click(timeout=2000)
                             await page.wait_for_timeout(500)
                 except Exception:
                     continue
@@ -461,16 +459,6 @@ class NavigationHandler:
             # Final fallback: escape key
             await page.keyboard.press('Escape')
             await page.wait_for_timeout(500)
-            
-            # If still present, forcefully remove or click backdrops using JS
-            try:
-                await page.evaluate('''() => {
-                    const backdrops = document.querySelectorAll('.cdk-overlay-backdrop, .modal-backdrop');
-                    backdrops.forEach(b => b.click());
-                }''')
-                await page.wait_for_timeout(500)
-            except Exception:
-                pass
             
         except Exception as e:
             print(f"Error while trying to handle overlay: {e}")

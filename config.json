@@ -1,5 +1,5 @@
 {
-  "start_url": "https://chatgpt.com",
+  "start_url": "https://example.com",
   "max_depth": 3,
   "max_clicks_per_page": 20,
   "wait_timeout": 30000,
