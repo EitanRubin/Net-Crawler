@@ -1,0 +1,26 @@
+{
+  "start_url": "https://chatgpt.com",
+  "max_depth": 3,
+  "max_clicks_per_page": 20,
+  "wait_timeout": 30000,
+  "network_idle_timeout": 2000,
+  "http_credentials": {
+    "username": "user",
+    "password": "pass"
+  },
+  "form_filling": {
+    "enabled": true,
+    "fill_delay": 100,
+    "defaults": {
+      "#username": "testuser",
+      "#email": "test@example.com",
+      "input[name='password']": "SecurePassword123!"
+    }
+  },
+  "exclude_patterns": [
+    "logout",
+    "delete",
+    "remove"
+  ],
+  "output_file": "mappings_output.json"
+}
