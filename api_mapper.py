@@ -173,22 +173,31 @@ class APIMapper:
             if not is_external_url(url_key):
                 return
 
+            print(f"DEBUG: intercepted request {url_key} (type: {request.resource_type})")
+
             # Store request data for all requests 
             if url_key not in pending_requests:
                 request_data = await self.interceptor.handle_request(request)
                 pending_requests[url_key] = request_data
         
-        # Set up request handler - this captures all requests
-        self.page.on('request', handle_request)
+        def setup_page(target_page):
+            # Set up request handler - this captures all requests
+            target_page.on('request', handle_request)
+            
+            # Set up response handler
+            target_page.on('response', handle_response)
+            
+            # Set up failed request handler - capture requests that don't get a response
+            target_page.on('requestfailed', handle_request_failed)
+            
+            # Set up finished request handler - capture requests that finished
+            target_page.on('requestfinished', handle_request_finished)
+            
+        # Apply to main page
+        setup_page(self.page)
         
-        # Set up response handler
-        self.page.on('response', handle_response)
-        
-        # Set up failed request handler - capture requests that don't get a response
-        self.page.on('requestfailed', handle_request_failed)
-        
-        # Set up finished request handler - capture requests that finished (including redirects, challenges)
-        self.page.on('requestfinished', handle_request_finished)
+        # Apply to any newly created pages (e.g. target="_blank" links)
+        self.context.on('page', setup_page)
 
     async def map_website(self) -> Dict[str, Any]:
         """Main mapping function."""
