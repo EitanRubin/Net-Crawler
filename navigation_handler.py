@@ -436,6 +436,35 @@ class NavigationHandler:
                         except Exception:
                             pass
 
+                        # If no dropdown option appeared after typing, it might be an autocomplete 
+                        # where only matching values show options. Clear input to see if it shows all options.
+                        if not dropdown_handled:
+                            try:
+                                # First, clear the input
+                                await input_el.clear(timeout=1000)
+                                await page.wait_for_timeout(300)
+                                
+                                # Check again if any option appeared
+                                for opt_selector in option_selectors:
+                                    options = await page.query_selector_all(opt_selector)
+                                    for opt in options:
+                                        if await opt.is_visible():
+                                            await opt.scroll_into_view_if_needed()
+                                            await opt.click(timeout=2000)
+                                            print(f"Selected cleared-typing dropdown option: {opt_selector}")
+                                            dropdown_handled = True
+                                            await page.wait_for_timeout(300)
+                                            break
+                                    if dropdown_handled:
+                                        break
+                                        
+                                # If STILL no dropdown, we re-type the original value to proceed normally
+                                if not dropdown_handled:
+                                    await input_el.type(fill_value, delay=50)
+                                    await page.wait_for_timeout(300)
+                            except Exception:
+                                pass
+
                     # Dispatch events to ensure app logic detects change
                     try:
                         await input_el.dispatch_event('input')
