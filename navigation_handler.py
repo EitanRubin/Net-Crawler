@@ -278,7 +278,8 @@ class NavigationHandler:
 
         try:
             # Find all visible inputs, textareas, and selects that are not disabled or readonly
-            inputs = await page.query_selector_all('input:not([type="hidden"]):not([disabled]):not([readonly]), textarea:not([disabled]):not([readonly]), select:not([disabled])')
+            # Include readonly inputs as they might be custom click-triggered dropdowns
+            inputs = await page.query_selector_all('input:not([type="hidden"]):not([disabled]), textarea:not([disabled]):not([readonly]), select:not([disabled])')
 
             for input_el in inputs:
                 try:
@@ -368,20 +369,89 @@ class NavigationHandler:
                         print(f"Adjusted value to meet minimum length {min_length}")
 
                     # Clear the field first
-                    await input_el.clear()
+                    try:
+                        await input_el.clear(timeout=2000)
+                    except Exception:
+                        pass # Native readonly fields might throw here
 
-                    # Fill the value character by character to trigger validation
-                    await input_el.type(fill_value, delay=50)
+                    # Check for click-triggered dropdowns
+                    dropdown_handled = False
+                    try:
+                        await input_el.click(timeout=2000)
+                        await page.wait_for_timeout(500)
+                        
+                        option_selectors = [
+                            '[role="option"]',
+                            '.dropdown-item',
+                            '.select2-results__option',
+                            '.ant-select-item-option',
+                            '.el-select-dropdown__item',
+                            '.mat-option',
+                            '.v-list-item'
+                        ]
+                        
+                        for opt_selector in option_selectors:
+                            try:
+                                options = await page.query_selector_all(opt_selector)
+                                for opt in options:
+                                    if await opt.is_visible():
+                                        # Scroll into view and click
+                                        await opt.scroll_into_view_if_needed()
+                                        await opt.click(timeout=2000)
+                                        print(f"Selected click-triggered dropdown option: {opt_selector}")
+                                        dropdown_handled = True
+                                        await page.wait_for_timeout(300)
+                                        break
+                                if dropdown_handled:
+                                    break
+                            except Exception:
+                                continue
+                    except Exception as e:
+                        print(f"Error checking click dropdown: {e}")
+
+                    if not dropdown_handled:
+                        # Fill the value character by character to trigger validation
+                        try:
+                            await input_el.type(fill_value, delay=50)
+                        except Exception:
+                            # Might fail if readonly, but we tried our best
+                            pass
+                            
+                        await page.wait_for_timeout(300)
+
+                        # Also check if typing triggered an autocomplete dropdown
+                        try:
+                            for opt_selector in option_selectors:
+                                options = await page.query_selector_all(opt_selector)
+                                for opt in options:
+                                    if await opt.is_visible():
+                                        await opt.scroll_into_view_if_needed()
+                                        await opt.click(timeout=2000)
+                                        print(f"Selected typing-triggered dropdown option: {opt_selector}")
+                                        dropdown_handled = True
+                                        await page.wait_for_timeout(300)
+                                        break
+                                if dropdown_handled:
+                                    break
+                        except Exception:
+                            pass
 
                     # Dispatch events to ensure app logic detects change
-                    await input_el.dispatch_event('input')
-                    await input_el.dispatch_event('change')
-                    await input_el.dispatch_event('blur')
+                    try:
+                        await input_el.dispatch_event('input')
+                        await input_el.dispatch_event('change')
+                        await input_el.dispatch_event('blur')
+                    except Exception:
+                        pass
 
                     # Wait for validation to run
                     await page.wait_for_timeout(300)
 
-                    print(f"Filled form field with: {fill_value}")
+                    if dropdown_handled:
+                        print("Filled form field via dropdown selection")
+                    else:
+                        print(f"Filled form field with: {fill_value}")
+                        
                     await page.wait_for_timeout(self.config.form_filling.fill_delay)
 
                 except Exception as e:
