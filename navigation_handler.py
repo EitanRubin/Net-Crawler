@@ -276,6 +276,16 @@ class NavigationHandler:
         if not self.config.form_filling or not self.config.form_filling.enabled:
             return
 
+        max_passes = 3
+        for pass_idx in range(max_passes):
+            fields_filled = await self._fill_page_forms_pass(page)
+            if fields_filled == 0:
+                break
+            # Wait a little before the next pass to allow UI to update
+            await page.wait_for_timeout(500)
+
+    async def _fill_page_forms_pass(self, page: Page) -> int:
+        fields_filled = 0
         try:
             # Find all visible inputs, textareas, and selects that are not disabled or readonly
             # Include readonly inputs as they might be custom click-triggered dropdowns
@@ -320,6 +330,7 @@ class NavigationHandler:
                         await input_el.dispatch_event('change')
                         await page.wait_for_timeout(300)
                         await page.wait_for_timeout(self.config.form_filling.fill_delay)
+                        fields_filled += 1
                         continue
 
                     # Check if already has value
@@ -441,7 +452,7 @@ class NavigationHandler:
                         if not dropdown_handled:
                             try:
                                 # First, clear the input
-                                await input_el.clear(timeout=1000)
+                                await input_el.fill("", timeout=1000)
                                 await page.wait_for_timeout(300)
                                 
                                 # Check again if any option appeared
@@ -481,6 +492,7 @@ class NavigationHandler:
                     else:
                         print(f"Filled form field with: {fill_value}")
                         
+                    fields_filled += 1
                     await page.wait_for_timeout(self.config.form_filling.fill_delay)
 
                 except Exception as e:
@@ -492,6 +504,8 @@ class NavigationHandler:
 
         except Exception as e:
             print(f"Error filling forms: {e}")
+
+        return fields_filled
 
     async def _handle_overlay(self, page: Page):
         """Attempt to interact with and then dismiss any blocking modals."""
