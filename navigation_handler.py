@@ -514,34 +514,107 @@ class NavigationHandler:
             # 1. Fill any forms that might be in the new modal
             await self.fill_page_forms(page)
             
-            # 2. Try affirmative actions to trigger API calls
-            action_selectors = [
-                'button:has-text("Confirm")',
-                'button:has-text("Yes")',
-                'button:has-text("Accept")',
-                'button:has-text("Submit")',
-                'button:has-text("Continue")',
-                'button:has-text("Save")',
-                'button:has-text("Create")',
-                'button:has-text("Update")',
-                'button:has-text("Delete")',
-                'input[type="submit"]',
-                '.btn-primary:not([disabled])',
+            # 2. Identify active modal container
+            modal_container = None
+            container_selectors = [
+                'dialog[open]',
+                '[role="dialog"]',
+                '[role="alertdialog"]',
+                '.modal-content',
+                '.modal-dialog',
+                '.modal',
+                '[class*="modal"]',
+                '.overlay',
+                '[class*="overlay"]'
             ]
             
-            action_taken = False
-            for selector in action_selectors:
+            for selector in container_selectors:
                 try:
                     elements = await page.query_selector_all(selector)
                     for el in elements:
                         if await el.is_visible():
-                            print(f"Clicking affirmative action in overlay: {selector}")
-                            await el.click(timeout=2000)
-                            await page.wait_for_timeout(1000)
-                            action_taken = True
+                            modal_container = el
+                            break
+                    if modal_container:
+                        break
                 except Exception:
                     continue
             
+            action_taken = False
+            if modal_container:
+                print("Modal container identified. Searching for interactive elements...")
+                try:
+                    # Find buttons and links inside the modal
+                    interactive_elements = await modal_container.query_selector_all('button, a[href], [role="button"], input[type="submit"], input[type="button"]')
+                    
+                    # Patterns for dismissive or destructive elements that should be skipped or done last
+                    skip_patterns = ['close', 'cancel', 'dismiss', 'no thanks', 'x', 'logout', 'delete', 'remove', 'destroy', 'clear']
+                    
+                    for el in interactive_elements:
+                        if not await el.is_visible():
+                            continue
+                            
+                        # Check text and aria-label
+                        text_content = ''
+                        try:
+                            text_content = (await el.text_content() or '').lower()
+                        except:
+                            pass
+                            
+                        aria_label = ''
+                        try:
+                            aria_label = (await el.get_attribute('aria-label') or '').lower()
+                        except:
+                            pass
+                            
+                        combined_text = f"{text_content} {aria_label}".strip()
+                        
+                        # Skip if dismissive or destructive
+                        is_skippable = False
+                        for pattern in skip_patterns:
+                            if pattern in combined_text.split() or combined_text == pattern:
+                                is_skippable = True
+                                break
+                                
+                        if not is_skippable:
+                            print(f"Clicking actionable element in modal: '{combined_text[:30]}'")
+                            try:
+                                await el.click(timeout=2000)
+                                await page.wait_for_timeout(1000)
+                                action_taken = True
+                            except Exception as click_err:
+                                print(f"Could not click modal element: {click_err}")
+                except Exception as e:
+                    print(f"Error exploring modal elements: {e}")
+            else:
+                print("Could not explicitly identify modal container. Falling back to targeted selectors.")
+                # Fallback to the old method
+                action_selectors = [
+                    'button:has-text("Confirm")',
+                    'button:has-text("Yes")',
+                    'button:has-text("Accept")',
+                    'button:has-text("Submit")',
+                    'button:has-text("Continue")',
+                    'button:has-text("Save")',
+                    'button:has-text("Create")',
+                    'button:has-text("Update")',
+                    'button:has-text("Delete")',
+                    'input[type="submit"]',
+                    '.btn-primary:not([disabled])',
+                ]
+                
+                for selector in action_selectors:
+                    try:
+                        elements = await page.query_selector_all(selector)
+                        for el in elements:
+                            if await el.is_visible():
+                                print(f"Clicking affirmative action as fallback: {selector}")
+                                await el.click(timeout=2000)
+                                await page.wait_for_timeout(1000)
+                                action_taken = True
+                    except Exception:
+                        continue
+
             if action_taken:
                 # Give it a moment to process the action and potentially close the modal
                 await page.wait_for_timeout(1000)
