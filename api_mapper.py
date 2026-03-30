@@ -249,7 +249,7 @@ class APIMapper:
                     print(f"Failed to restore state to {base_url}: {e}")
                     continue
 
-            print(f"Clicking element {i+1}/{len(clickable_elements)} of depth {depth}")
+            print(f"Clicking element {i+1}/{len(clickable_elements)} of depth {depth}. {element.get_attribute('name')}, {await element.text_content()}")
 
             # Set interceptor context
             self.interceptor.set_context(page.url, depth)

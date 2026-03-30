@@ -279,11 +279,16 @@ class NavigationHandler:
         try:
             # Find all visible inputs, textareas, and selects that are not disabled or readonly
             inputs = await page.query_selector_all('input:not([type="hidden"]):not([disabled]):not([readonly]), textarea:not([disabled]):not([readonly]), select:not([disabled])')
+            print(f"Found {len(inputs)} inputs")
 
+            counter = 0
             for input_el in inputs:
                 try:
                     if not await input_el.is_visible():
                         continue
+
+                    counter += 1
+                    print(f"Filling input {counter} of {len(inputs)}: {input_el.get_attribute('name')}")
 
                     tag_name = await input_el.evaluate('el => el.tagName.toLowerCase()')
                     
